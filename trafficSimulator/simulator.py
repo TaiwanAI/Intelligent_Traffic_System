@@ -231,10 +231,10 @@ def willCollide(curCar, nextX, nextY):
             if (curCar.heading() % 180 == neiCar.heading() % 180):
                 # Same direction and collide
                 if ((curCar.heading() == neiCar.heading()) and (dist <= min_dist_between_car_vertical)):
-                    print("might vertical collide")
+                    #print("might vertical collide")
                     return True
             elif (dist <= min_dist_between_car_horizontal):
-                print("might horizontal collide")
+                #print("might horizontal collide")
                 return True
     # No Collision
     return False
