@@ -14,11 +14,13 @@ pygame.init()
 window_height = 600
 window_width = 600
 
-update_interval = 30
-
+update_interval = 40
+# The direction is to be...not the current situation
 traffic_direction_north_south = True
-traffic_time_scale_to_update = 50  # How much we should wait for a light change
+#traffic_time_scale_to_update = 50  # How much we should wait for a light change
 traffic_time = 0
+traffic_time_red_update = 50    # How long is the red light
+traffic_time_green_update = 50  # How long is the green light
 
 # Traffic Lights [up, down, left, right]
 light_pair_number = 4
@@ -43,11 +45,21 @@ car_start_position_y = [300,-300,45,-45]
 CAR_SPEED = 25
 time_to_create_car = 20
 
+# Get the number of cars waiting for the red lights on different direction
+car_num_waiting_north = 0
+car_num_waiting_south = 0
+car_num_waiting_west = 0
+car_num_waiting_east = 0
 
 # Car Class
 class Car(turtle.Turtle):
-    def __init__(self):
+    def __init__(self, _isWaiting = False):
         super(Car, self).__init__()
+        self.isWaiting = _isWaiting
+    def setWaiting(self, _isWaiting):
+        self.isWaiting = _isWaiting
+    def getWaiting(self):
+        return self.isWaiting
 
 
 turtle.addshape("car_toNorth.gif")
@@ -55,10 +67,47 @@ turtle.addshape("car_toSouth.gif")
 turtle.addshape("car_toEast.gif")
 turtle.addshape("car_toWest.gif")
 
+
+##### APIs for external usage #####
+
+# Set the time for green light and red light on North-South direction
+# @param greenTime (Integer) The time lasted for green lights on North-South direction
+# @param redTime (Integer) The time lasted for red lights on North-South direction
+def set_traffic_time_green_red_north_south(greenTime, redTime):
+    global traffic_time_green_update
+    global traffic_time_red_update
+    traffic_time_green_update = greenTime
+    traffic_time_red_update = redTime
+
+
+
+# Get the total number of cars waiting behind the red lights on each direction
+# @return [num_north, num_south, num_west, num_east] (List of Integer)
+def get_car_num_waiting():
+    return [car_num_waiting_north, car_num_waiting_south, car_num_waiting_west, car_num_waiting_east]
+
+# Get the total number of cars
+# @return num_of_cars (Integer)
+def get_car_num_total():
+    return len(cars)
+
+##### End of APIs for external usage #####
+
+
 # Implementation
 
 def exec_traffic_direction():
     global traffic_direction_north_south
+    global car_num_waiting_north
+    global car_num_waiting_south
+    global car_num_waiting_west
+    global car_num_waiting_east
+
+    # Set the car waiting number to 0
+    car_num_waiting_north = 0
+    car_num_waiting_south = 0
+    car_num_waiting_west = 0
+    car_num_waiting_east = 0
     
     if traffic_direction_north_south:
         red_lights[0].hideturtle()
@@ -71,7 +120,8 @@ def exec_traffic_direction():
         green_lights[0].showturtle()
         green_lights[1].showturtle()
         
-        traffic_direction_north_south = False  # Set to opposite direction
+        # Set to opposite direction
+        traffic_direction_north_south = False  
         
     else:
         red_lights[2].hideturtle()
@@ -84,7 +134,8 @@ def exec_traffic_direction():
         green_lights[2].showturtle()
         green_lights[3].showturtle()
         
-        traffic_direction_north_south = True  # Set to opposite direction
+        # Set to opposite direction
+        traffic_direction_north_south = True  
 
 
 def createCar(_direction, _speed = 30, isNew = True):
@@ -125,7 +176,7 @@ def restartCar(car):
 
     global car_start_position_x
     global car_start_position_y
-
+    
     car.hideturtle()       # Hide the image
 
     _direction = random.randint(0,3)   # Generate random direction
@@ -160,10 +211,18 @@ def updateScreen():
     global traffic_time_scale_to_update
     global traffic_time
     global time_to_create_car
+    global car_num_waiting_north
+    global car_num_waiting_south
+    global car_num_waiting_west
+    global car_num_waiting_east
+
 
     # Control the traffic time
     traffic_time += 1
-    if traffic_time >= traffic_time_scale_to_update:
+    
+    # When North-South is green(to be red), and the traffic time reach green's limit
+    # OR when North-South is red(to be green), and the traffic time reach red's limit
+    if ((traffic_time >= traffic_time_green_update) and not traffic_direction_north_south) or ((traffic_time >= traffic_time_red_update) and traffic_direction_north_south):
         traffic_time = 0
         # Control the traffic lights
         exec_traffic_direction()
@@ -179,46 +238,67 @@ def updateScreen():
     for i in range(len(cars)):
         curCar = cars[i]
 
-        #if ((curCar.heading() == 0.0) and (curCar.xcor() < )):  # Head East
-
         if (curCar.heading() == 270.0):  # Head South
-            if ((curCar.ycor() < 200) and (curCar.ycor() > 100) and (red_lights[0].isvisible())):        
-                curCar.forward(0)
+            if ((curCar.ycor() < 200) and (curCar.ycor() > 100) and (red_lights[0].isvisible())):
+                if(not curCar.getWaiting()):
+                    curCar.forward(0)    # Stop the car
+                    car_num_waiting_north += 1    # Wait at north
+                curCar.setWaiting(True)
             elif (curCar.ycor() < -350):
                 rand_dir = random.randint(0,3)
                 restartCar(curCar)
             else:
                 curCar.forward(CAR_SPEED)
+                curCar.setWaiting(False)
 
         elif (curCar.heading() == 90.0):  # Head North
             if ((curCar.ycor() < -100) and (curCar.ycor() > -200) and (red_lights[1].isvisible())):
-                curCar.forward(0)
+                if(not curCar.getWaiting()):
+                    curCar.forward(0)    # Stop the car
+                    car_num_waiting_south += 1    # Wait at south
+                curCar.setWaiting(True)
             elif (curCar.ycor() > 350):
                 rand_dir = random.randint(0,3)
                 restartCar(curCar)
             else:
                 curCar.forward(CAR_SPEED)
+                curCar.setWaiting(False)
                 
         elif (curCar.heading() == 0.0):  # Head East
-            if ((curCar.xcor() < -100) and (curCar.xcor() > -200) and (red_lights[2].isvisible())):  
-                curCar.forward(0)
+            if ((curCar.xcor() < -100) and (curCar.xcor() > -200) and (red_lights[2].isvisible())):
+                if(not curCar.getWaiting()):
+                    curCar.forward(0)    # Stop the car
+                    car_num_waiting_west += 1    # Wait at west
+                curCar.setWaiting(True)
             elif (curCar.xcor() > 350):
                 rand_dir = random.randint(0,3)
                 restartCar(curCar)
             else:
                 curCar.forward(CAR_SPEED)
+                curCar.setWaiting(False)
                 
         elif (curCar.heading() == 180.0):  # Head West 
-            if ((curCar.xcor() < 200) and (curCar.xcor() > 100) and (red_lights[3].isvisible())):         
-                curCar.forward(0)
+            if ((curCar.xcor() < 200) and (curCar.xcor() > 100) and (red_lights[3].isvisible())):
+                if(not curCar.getWaiting()):
+                    curCar.forward(0)    # Stop the car
+                    car_num_waiting_east += 1    # Wait at east
+                curCar.setWaiting(True)
             elif (curCar.xcor() < -350):
                 rand_dir = random.randint(0,3)
                 restartCar(curCar)
             else:
                 curCar.forward(CAR_SPEED)
+                curCar.setWaiting(False)
                   
         else:
             curCar.forward(CAR_SPEED)
+
+
+    # Update Interface
+    score_text.clear()
+    wait_list = get_car_num_waiting()
+    wait_list_str = str(wait_list[0]) + " " + str(wait_list[1]) + " " + str(wait_list[2]) + " " + str(wait_list[3]) + "\n"
+    score_text.write(wait_list_str, font=("Arial", 20, "bold"), align="center")
         
 
     # Update the screen for every time interval
@@ -270,6 +350,13 @@ for ind in range(light_pair_number):
     greenLit.showturtle()       # Show the image
     
     green_lights.append(greenLit)     # Collect control back
+
+
+# Interface
+score_text=turtle.Turtle()
+score_text.up()
+score_text.hideturtle()
+score_text.goto(250, 250)
 
 
 # Start!!!
