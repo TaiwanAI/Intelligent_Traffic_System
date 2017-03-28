@@ -9,6 +9,10 @@ import pygame
 
 
 # Initialization
+SOUTH = 0
+NORTH = 1
+EAST = 2
+WEST = 3
 pygame.init()
 
 window_height = 600
@@ -97,13 +101,13 @@ def createCar(_direction, _speed = 30, isNew = True):
     car.hideturtle()       # Hide the image
     
     # Set the car direction
-    if(_direction == 0):    # go south
+    if(_direction == SOUTH):    # go south
         car.setheading(270)
         car.shape("car_toSouth.gif")
-    elif(_direction == 1):  # go north
+    elif(_direction == NORTH):  # go north
         car.setheading(90)
         car.shape("car_toNorth.gif")
-    elif(_direction == 2):  # go east
+    elif(_direction == EAST):  # go east
         car.setheading(0)
         car.shape("car_toEast.gif")
     else:                   # go west
@@ -131,14 +135,14 @@ def restartCar(car):
     _direction = random.randint(0,3)   # Generate random direction
     
     # Set the car direction
-    if(_direction == 0):    # go south
+    if(_direction == SOUTH):    # go south
         car.setheading(270)
         car.shape("car_toSouth.gif")
-    elif(_direction == 1):  # go north
+    elif(_direction == NORTH):  # go north
         car.setheading(90)
         car.shape("car_toNorth.gif")
     elif(_direction == 2):  # go east
-        car.setheading(0)
+        car.setheading(EAST)
         car.shape("car_toEast.gif")
     else:                   # go west
         car.setheading(180)
