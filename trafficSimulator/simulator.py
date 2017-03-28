@@ -51,20 +51,33 @@ CAR_SPEED = 35
 time_to_create_car = 20
 
 # Get the number of cars waiting for the red lights on different direction
-car_num_waiting_north = 0
-car_num_waiting_south = 0
-car_num_waiting_west = 0
-car_num_waiting_east = 0
+#car_num_waiting_north = 0
+#car_num_waiting_south = 0
+#car_num_waiting_west = 0
+#car_num_waiting_east = 0
 
 # Car Class
 class Car(turtle.Turtle):
-    def __init__(self, _isWaiting = False):
+    def __init__(self, _isWaiting = False, _waitingFor = -1):
         super(Car, self).__init__()
         self.isWaiting = _isWaiting
+        self.waitingFor = _waitingFor
+
+    # True if is waiting; False if not
     def setWaiting(self, _isWaiting):
         self.isWaiting = _isWaiting
+        if(not _isWaiting):
+            self.waitingFor = -1
+        
     def getWaiting(self):
         return self.isWaiting
+
+    # -1 if not waiting/horizontal waiting; 0,1,2,3 for N,S,W,E
+    def setWaitingFor(self, _waitingFor):
+        self.waitingFor = _waitingFor
+        
+    def getWaitingFor(self):
+        return self.waitingFor
 
 
 turtle.addshape("car_toNorth.gif")
@@ -85,11 +98,28 @@ def set_traffic_time_green_red_north_south(greenTime, redTime):
     traffic_time_red_update = redTime
 
 
-
 # Get the total number of cars waiting behind the red lights on each direction
 # @return [num_north, num_south, num_west, num_east] (List of Integer)
 def get_car_num_waiting():
+    # Initialization
+    car_num_waiting_north = 0
+    car_num_waiting_south = 0
+    car_num_waiting_west = 0
+    car_num_waiting_east = 0
+    
+    for i in range(len(cars)):
+        curCar = cars[i]
+        if(curCar.getWaitingFor() == 0):
+            car_num_waiting_north += 1
+        elif(curCar.getWaitingFor() == 1):
+            car_num_waiting_south += 1
+        elif(curCar.getWaitingFor() == 2):
+            car_num_waiting_west += 1
+        elif(curCar.getWaitingFor() == 3):
+            car_num_waiting_east += 1
+            
     return [car_num_waiting_north, car_num_waiting_south, car_num_waiting_west, car_num_waiting_east]
+
 
 # Get the total number of cars
 # @return num_of_cars (Integer)
@@ -103,16 +133,16 @@ def get_car_num_total():
 
 def exec_traffic_direction():
     global traffic_direction_north_south
-    global car_num_waiting_north
-    global car_num_waiting_south
-    global car_num_waiting_west
-    global car_num_waiting_east
+    #global car_num_waiting_north
+    #global car_num_waiting_south
+    #global car_num_waiting_west
+    #global car_num_waiting_east
 
     # Set the car waiting number to 0
-    car_num_waiting_north = 0
-    car_num_waiting_south = 0
-    car_num_waiting_west = 0
-    car_num_waiting_east = 0
+    #car_num_waiting_north = 0
+    #car_num_waiting_south = 0
+    #car_num_waiting_west = 0
+    #car_num_waiting_east = 0
     
     if traffic_direction_north_south:
         red_lights[0].hideturtle()
@@ -232,8 +262,11 @@ def willCollide(curCar, nextX, nextY):
                 # Same direction and collide
                 if ((curCar.heading() == neiCar.heading()) and (dist <= min_dist_between_car_vertical)):
                     #print("might vertical collide")
+                    # It waits for the same light its front car waiting for
+                    curCar.setWaitingFor(neiCar.getWaitingFor())
                     return True
             elif (dist <= min_dist_between_car_horizontal):
+                curCar.setWaitingFor(-1)
                 #print("might horizontal collide")
                 return True
     # No Collision
@@ -245,10 +278,10 @@ def updateScreen():
     global traffic_time_scale_to_update
     global traffic_time
     global time_to_create_car
-    global car_num_waiting_north
-    global car_num_waiting_south
-    global car_num_waiting_west
-    global car_num_waiting_east
+    #global car_num_waiting_north
+    #global car_num_waiting_south
+    #global car_num_waiting_west
+    #global car_num_waiting_east
 
 
     # Control the traffic time
@@ -274,11 +307,12 @@ def updateScreen():
 
         if (curCar.heading() == 270.0):  # Head South
             if ((curCar.ycor() < 200) and (curCar.ycor() > 100) and (red_lights[0].isvisible())):
-                if(not curCar.getWaiting()):
-                    car_num_waiting_north += 1    # Wait at north
+                #if(not curCar.getWaiting()):
+                    #car_num_waiting_north += 1    # Wait at north
                 # Stop the car
                 curCar.setWaiting(True)
-            elif (curCar.ycor() < -350):
+                curCar.setWaitingFor(0)
+            elif (curCar.ycor() < -350):  # Cancel car when out of sight
                 restartCar(curCar)
             else:
                 if(not willCollide(curCar, curCar.xcor(), curCar.ycor() - CAR_SPEED * collision_factor_for_speed)):
@@ -287,11 +321,12 @@ def updateScreen():
 
         elif (curCar.heading() == 90.0):  # Head North
             if ((curCar.ycor() < -100) and (curCar.ycor() > -200) and (red_lights[1].isvisible())):
-                if(not curCar.getWaiting()):
-                    car_num_waiting_south += 1    # Wait at south
+                #if(not curCar.getWaiting()):
+                    #car_num_waiting_south += 1    # Wait at south
                 # Stop the car
                 curCar.setWaiting(True)
-            elif (curCar.ycor() > 350):
+                curCar.setWaitingFor(1)
+            elif (curCar.ycor() > 350):  # Cancel car when out of sight
                 restartCar(curCar)
             else:
                 if(not willCollide(curCar, curCar.xcor(), curCar.ycor() + CAR_SPEED * collision_factor_for_speed)):
@@ -300,11 +335,12 @@ def updateScreen():
                 
         elif (curCar.heading() == 0.0):  # Head East
             if ((curCar.xcor() < -100) and (curCar.xcor() > -200) and (red_lights[2].isvisible())):
-                if(not curCar.getWaiting()):
-                    car_num_waiting_west += 1    # Wait at west
+                #if(not curCar.getWaiting()):
+                    #car_num_waiting_west += 1    # Wait at west
                 # Stop the car
                 curCar.setWaiting(True)
-            elif (curCar.xcor() > 350):
+                curCar.setWaitingFor(2)
+            elif (curCar.xcor() > 350):  # Cancel car when out of sight
                 restartCar(curCar)
             else:
                 if(not willCollide(curCar, curCar.xcor() + CAR_SPEED * collision_factor_for_speed, curCar.ycor())):
@@ -313,11 +349,12 @@ def updateScreen():
                 
         elif (curCar.heading() == 180.0):  # Head West 
             if ((curCar.xcor() < 200) and (curCar.xcor() > 100) and (red_lights[3].isvisible())):
-                if(not curCar.getWaiting()):
-                    car_num_waiting_east += 1    # Wait at east
+                #if(not curCar.getWaiting()):
+                    #car_num_waiting_east += 1    # Wait at east
                 # Stop the car
                 curCar.setWaiting(True)
-            elif (curCar.xcor() < -350):
+                curCar.setWaitingFor(3)
+            elif (curCar.xcor() < -350):  # Cancel car when out of sight
                 restartCar(curCar)
             else:
                 if(not willCollide(curCar, curCar.xcor() - CAR_SPEED * collision_factor_for_speed, curCar.ycor())):
@@ -333,6 +370,7 @@ def updateScreen():
     wait_list = get_car_num_waiting()
     wait_list_str = str(wait_list[0]) + " " + str(wait_list[1]) + " " + str(wait_list[2]) + " " + str(wait_list[3]) + "\n"
     score_text.write(wait_list_str, font=("Arial", 20, "bold"), align="center")
+    score_text.write("\nTotal: " + str(get_car_num_total()), font=("Arial", 20, "bold"), align="center")
         
 
     # Update the screen for every time interval
