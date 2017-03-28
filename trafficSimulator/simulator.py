@@ -6,6 +6,7 @@ import turtle
 import random
 import time
 import pygame
+import math
 
 
 # Initialization
@@ -14,7 +15,7 @@ pygame.init()
 window_height = 600
 window_width = 600
 
-update_interval = 40
+update_interval = 30
 # The direction is to be...not the current situation
 traffic_direction_north_south = True
 #traffic_time_scale_to_update = 50  # How much we should wait for a light change
@@ -33,16 +34,20 @@ green_lights = []
 green_light_position_x = [20, -20, -100, 100]
 green_light_position_y = [100,-100, 20, -20]
 
+# Minimum Allow Distance between cars
+min_dist_between_car_vertical = 100
+min_dist_between_car_horizontal = 50
+collision_factor_for_speed = 2.5
 
 # Cars
-car_max_num = 5
+car_max_num = 20
 car_start_num = 1
 cars = []
 
-car_start_position_x = [45,-45,-300,300]
-car_start_position_y = [300,-300,45,-45]
+car_start_position_x = [45,-45,-1000,1000]
+car_start_position_y = [1000,-1000,45,-45]
 
-CAR_SPEED = 25
+CAR_SPEED = 35
 time_to_create_car = 20
 
 # Get the number of cars waiting for the red lights on different direction
@@ -165,12 +170,16 @@ def createCar(_direction, _speed = 30, isNew = True):
     car.speed(0)
     car.up()              # Hide moving trace
     car.goto(car_start_position_x[_direction], car_start_position_y[_direction])  # Set position
+
     car.showturtle()       # Show the image
 
     car.speed(_speed)
     
     if(isNew):
         cars.append(car)     # Collect control back
+
+    if(willCollide(car, car.xcor(), car.ycor())):
+        restartCar(car)
 
 def restartCar(car):
 
@@ -184,6 +193,7 @@ def restartCar(car):
     # Set the car direction
     if(_direction == 0):    # go south
         car.setheading(270)
+        
         car.shape("car_toSouth.gif")
     elif(_direction == 1):  # go north
         car.setheading(90)
@@ -199,11 +209,35 @@ def restartCar(car):
     car.speed(0)
     car.up()              # Hide moving trace
     car.goto(car_start_position_x[_direction], car_start_position_y[_direction])  # Set position
+           
     car.showturtle()       # Show the image
 
     _speed = random.randint(20,30)
     car.speed(_speed)
-    
+
+    if(willCollide(car, car.xcor(), car.ycor())):
+        restartCar(car)
+
+# Check if a collision will happen
+# call by willCollide(curCar, curCar.xcor() + 10, curCar.ycor())
+def willCollide(curCar, nextX, nextY):
+    for i in range(len(cars)):
+        neiCar = cars[i]
+        
+        if not (curCar == neiCar):
+            dist = math.hypot(nextX - neiCar.xcor(), nextY - neiCar.ycor())
+            # Check Neighbor Car
+            # Same direction or opposite
+            if (curCar.heading() % 180 == neiCar.heading() % 180):
+                # Same direction and collide
+                if ((curCar.heading() == neiCar.heading()) and (dist <= min_dist_between_car_vertical)):
+                    print("might vertical collide")
+                    return True
+            elif (dist <= min_dist_between_car_horizontal):
+                print("might horizontal collide")
+                return True
+    # No Collision
+    return False
 
 def updateScreen():
 
@@ -241,54 +275,54 @@ def updateScreen():
         if (curCar.heading() == 270.0):  # Head South
             if ((curCar.ycor() < 200) and (curCar.ycor() > 100) and (red_lights[0].isvisible())):
                 if(not curCar.getWaiting()):
-                    curCar.forward(0)    # Stop the car
                     car_num_waiting_north += 1    # Wait at north
+                # Stop the car
                 curCar.setWaiting(True)
             elif (curCar.ycor() < -350):
-                rand_dir = random.randint(0,3)
                 restartCar(curCar)
             else:
-                curCar.forward(CAR_SPEED)
-                curCar.setWaiting(False)
+                if(not willCollide(curCar, curCar.xcor(), curCar.ycor() - CAR_SPEED * collision_factor_for_speed)):
+                    curCar.forward(CAR_SPEED)
+                    curCar.setWaiting(False)
 
         elif (curCar.heading() == 90.0):  # Head North
             if ((curCar.ycor() < -100) and (curCar.ycor() > -200) and (red_lights[1].isvisible())):
                 if(not curCar.getWaiting()):
-                    curCar.forward(0)    # Stop the car
                     car_num_waiting_south += 1    # Wait at south
+                # Stop the car
                 curCar.setWaiting(True)
             elif (curCar.ycor() > 350):
-                rand_dir = random.randint(0,3)
                 restartCar(curCar)
             else:
-                curCar.forward(CAR_SPEED)
-                curCar.setWaiting(False)
+                if(not willCollide(curCar, curCar.xcor(), curCar.ycor() + CAR_SPEED * collision_factor_for_speed)):
+                    curCar.forward(CAR_SPEED)
+                    curCar.setWaiting(False)
                 
         elif (curCar.heading() == 0.0):  # Head East
             if ((curCar.xcor() < -100) and (curCar.xcor() > -200) and (red_lights[2].isvisible())):
                 if(not curCar.getWaiting()):
-                    curCar.forward(0)    # Stop the car
                     car_num_waiting_west += 1    # Wait at west
+                # Stop the car
                 curCar.setWaiting(True)
             elif (curCar.xcor() > 350):
-                rand_dir = random.randint(0,3)
                 restartCar(curCar)
             else:
-                curCar.forward(CAR_SPEED)
-                curCar.setWaiting(False)
+                if(not willCollide(curCar, curCar.xcor() + CAR_SPEED * collision_factor_for_speed, curCar.ycor())):
+                    curCar.forward(CAR_SPEED)
+                    curCar.setWaiting(False)
                 
         elif (curCar.heading() == 180.0):  # Head West 
             if ((curCar.xcor() < 200) and (curCar.xcor() > 100) and (red_lights[3].isvisible())):
                 if(not curCar.getWaiting()):
-                    curCar.forward(0)    # Stop the car
                     car_num_waiting_east += 1    # Wait at east
+                # Stop the car
                 curCar.setWaiting(True)
             elif (curCar.xcor() < -350):
-                rand_dir = random.randint(0,3)
                 restartCar(curCar)
             else:
-                curCar.forward(CAR_SPEED)
-                curCar.setWaiting(False)
+                if(not willCollide(curCar, curCar.xcor() - CAR_SPEED * collision_factor_for_speed, curCar.ycor())):
+                    curCar.forward(CAR_SPEED)
+                    curCar.setWaiting(False)
                   
         else:
             curCar.forward(CAR_SPEED)
@@ -335,7 +369,7 @@ for ind in range(light_pair_number):
     redLit.shape("redLight.gif")  # Provide image source
     redLit.up()               # Hide moving trace
     redLit.goto(red_light_position_x[ind], red_light_position_y[ind])  # Set position
-    redLit.showturtle()       # Show the image
+    #redLit.showturtle()       # Show the image [Don't Show the lights at begin]
     
     red_lights.append(redLit)     # Collect control back
 
@@ -347,7 +381,7 @@ for ind in range(light_pair_number):
     greenLit.shape("greenLight.gif")  # Provide image source
     greenLit.up()               # Hide moving trace
     greenLit.goto(green_light_position_x[ind], green_light_position_y[ind])  # Set position
-    greenLit.showturtle()       # Show the image
+    #greenLit.showturtle()       # Show the image [Don't Show the lights at begin]
     
     green_lights.append(greenLit)     # Collect control back
 
