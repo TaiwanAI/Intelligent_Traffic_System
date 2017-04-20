@@ -63,6 +63,12 @@ car_start_position_y = [1000,-1000,45,-45]
 CAR_SPEED = 35
 time_to_create_car = 20
 
+
+# Cool Initialization
+rate_of_car_on_NS = 0.8
+
+
+
 # Get the number of cars waiting for the red lights on different direction
 #car_num_waiting_north = 0
 #car_num_waiting_south = 0
@@ -148,6 +154,20 @@ def get_car_num_total():
 
 
 # Implementation
+
+def getRandDir0to3():
+    rate = random.uniform(0, 2)     # Generate a float between 0 and 2
+    if(rate > 1):
+        rate -= 1
+        if(rate > rate_of_car_on_NS):
+            return EAST
+        else:
+            return SOUTH
+    else:
+        if(rate > rate_of_car_on_NS):
+            return WEST
+        else:
+            return NORTH
 
 def exec_traffic_direction():
     global traffic_direction_north_south
@@ -236,7 +256,8 @@ def restartCar(car):
     
     car.hideturtle()       # Hide the image
 
-    _direction = random.randint(0,3)   # Generate random direction
+    #_direction = random.randint(0,3)   # Generate random direction
+    _direction = getRandDir0to3()
     
     # Set the car direction
     if(_direction == SOUTH):    # go south
@@ -345,8 +366,8 @@ def updateScreen():
     # Create random car
     if ((traffic_time % time_to_create_car == 0) and (len(cars) < car_max_num)):
         #print("Create new car!")
-        rand_dir = random.randint(0,3)
-        createCar(rand_dir,30)  # given direction
+        #rand_dir = random.randint(0,3)
+        createCar(getRandDir0to3(),30)  # given direction
 
     # Move the cars
     for i in range(len(cars)):
@@ -433,8 +454,8 @@ def startSimulation():
     updateScreen()
 
     # Create cars
-    rand_dir = random.randint(0,3)
-    createCar(rand_dir, 30)
+    #rand_dir = random.randint(0,3)
+    createCar(getRandDir0to3(), 30)
 
     
 
