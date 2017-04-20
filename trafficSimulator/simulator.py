@@ -66,7 +66,7 @@ time_to_create_car = 20
 
 # Cool Initialization
 rate_of_car_on_NS = 0.8
-
+interface_cache = [0,0,0,0,0]    # total, north, south, west, east
 
 
 # Get the number of cars waiting for the red lights on different direction
@@ -140,7 +140,7 @@ def get_car_num_waiting():
         elif(curCar.getWaitingFor() == 2):
             car_num_waiting_west += 1
         elif(curCar.getWaitingFor() == 3):
-            car_num_waiting_east += 1
+            car_num_waiting_east += 1           
             
     return [car_num_waiting_north, car_num_waiting_south, car_num_waiting_west, car_num_waiting_east]
 
@@ -253,7 +253,8 @@ def restartCar(car):
 
     global car_start_position_x
     global car_start_position_y
-    
+
+    car.setWaiting(False)   # Waiting for none
     car.hideturtle()       # Hide the image
 
     #_direction = random.randint(0,3)   # Generate random direction
@@ -434,12 +435,34 @@ def updateScreen():
 
 
     # Update Interface
-    score_text.clear()
-    wait_list = get_car_num_waiting()
-    wait_list_str = str(wait_list[0]) + " " + str(wait_list[1]) + " " + str(wait_list[2]) + " " + str(wait_list[3]) + "\n"
-    score_text.write(wait_list_str, font=("Arial", 20, "bold"), align="center")
-    score_text.write("\nTotal: " + str(get_car_num_total()), font=("Arial", 20, "bold"), align="center")
-        
+    congest_list = get_car_num_waiting()
+
+    if(interface_cache[0] != get_car_num_total()):
+        interface_cache[0] = get_car_num_total()
+        total_car_num.clear()
+        total_car_num.write("\nTotal: " + str(get_car_num_total()), font=("Arial", 20, "bold"), align="center")
+
+    if(interface_cache[1] != congest_list[0]):
+        interface_cache[1] = congest_list[0]
+        north_congest_num.clear()
+        north_congest_num.write(str(congest_list[0]), font=("Arial", 20, "bold"), align="center")
+
+    if(interface_cache[2] != congest_list[1]):
+        interface_cache[2] = congest_list[1]
+        south_congest_num.clear()
+        south_congest_num.write(str(congest_list[1]), font=("Arial", 20, "bold"), align="center")
+
+    if(interface_cache[3] != congest_list[2]):
+        interface_cache[3] = congest_list[2]
+        west_congest_num.clear()
+        west_congest_num.write(str(congest_list[2]), font=("Arial", 20, "bold"), align="center")
+
+    if(interface_cache[4] != congest_list[3]):
+        interface_cache[4] = congest_list[3]
+        east_congest_num.clear()
+        east_congest_num.write(str(congest_list[3]), font=("Arial", 20, "bold"), align="center")
+    
+         
 
     # Update the screen for every time interval
     turtle.update()
@@ -493,11 +516,34 @@ for ind in range(light_pair_number):
 
 
 # Interface
-score_text=turtle.Turtle()
-score_text.up()
-score_text.hideturtle()
-score_text.goto(250, 250)
+total_car_num=turtle.Turtle()
+total_car_num.up()
+total_car_num.hideturtle()
+total_car_num.goto(250, 250)
 
+north_congest_num=turtle.Turtle()
+north_congest_num.up()
+north_congest_num.hideturtle()
+north_congest_num.goto(120, 120)
+north_congest_num.write("0", font=("Arial", 20, "bold"), align="center")
+
+south_congest_num=turtle.Turtle()
+south_congest_num.up()
+south_congest_num.hideturtle()
+south_congest_num.goto(-120, -120)
+south_congest_num.write("0", font=("Arial", 20, "bold"), align="center")
+
+west_congest_num=turtle.Turtle()
+west_congest_num.up()
+west_congest_num.hideturtle()
+west_congest_num.goto(-120, 120)
+west_congest_num.write("0", font=("Arial", 20, "bold"), align="center")
+
+east_congest_num=turtle.Turtle()
+east_congest_num.up()
+east_congest_num.hideturtle()
+east_congest_num.goto(120, -120)
+east_congest_num.write("0", font=("Arial", 20, "bold"), align="center")
 
 # Start!!!
 startSimulation()
