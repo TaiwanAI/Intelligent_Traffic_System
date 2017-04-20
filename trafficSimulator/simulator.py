@@ -246,8 +246,8 @@ def restartCar(car):
     elif(_direction == NORTH):  # go north
         car.setheading(90)
         car.shape("car_toNorth.gif")
-    elif(_direction == 2):  # go east
-        car.setheading(EAST)
+    elif(_direction == EAST):  # go east
+        car.setheading(0)
         car.shape("car_toEast.gif")
     else:                   # go west
         car.setheading(180)
