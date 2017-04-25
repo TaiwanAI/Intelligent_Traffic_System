@@ -8,8 +8,15 @@ import time
 import pygame
 import math
 from qlearningAgents import QLearningAgent
+
 import requests
 import json
+
+import sys
+
+# Default to be 1000
+sys.setrecursionlimit(1500)
+
 
 # Initialization
 SOUTH = 0
@@ -50,19 +57,28 @@ green_light_position_y = [100,-100, 20, -20]
 
 # Minimum Allow Distance between cars
 min_dist_between_car_vertical = 100
-min_dist_between_car_horizontal = 50
+min_dist_between_car_horizontal = 80
 collision_factor_for_speed = 2.5
 
 # Cars
-car_max_num = 20
+car_max_num = 10
 car_start_num = 1
 cars = []
 
 car_start_position_x = [45,-45,-1000,1000]
 car_start_position_y = [1000,-1000,45,-45]
 
-CAR_SPEED = 35
-time_to_create_car = 20
+CAR_SPEED = 30
+time_to_create_car = 10
+
+
+# Cool Initialization
+rate_of_car_on_NS = 0.5
+interface_cache = [0,0,0,0,0,[0,0]]    # total, north, south, west, east, [NS,WE]
+time_pin = 0    # To count the time of simulation
+congest_rate_array = []
+average_congest_rate = 0
+
 
 # Get the number of cars waiting for the red lights on different direction
 #car_num_waiting_north = 0
@@ -114,11 +130,13 @@ def set_traffic_time_green_red_north_south(greenTime, redTime):
     traffic_time_green_update = greenTime
     traffic_time_red_update = redTime
 
-def tune_traffic_time_green_red_north_south(greenTime, redTime):
+def tune_traffic_time_green_red_north_south(greenUpdateTime, redUpdateTime):
     global traffic_time_green_update
     global traffic_time_red_update
-    traffic_time_green_update += greenTime
-    traffic_time_red_update += redTime
+    if((greenUpdateTime > redUpdateTime) and (traffic_time_green_update / float(traffic_time_red_update) < 3.0)) or\
+        ((greenUpdateTime < redUpdateTime) and (traffic_time_red_update / float(traffic_time_green_update) < 3.0)):                            
+        traffic_time_green_update += greenUpdateTime
+        traffic_time_red_update += redUpdateTime
 
 # Get the total number of cars waiting behind the red lights on each direction
 # @return [num_north, num_south, num_west, num_east] (List of Integer)
@@ -138,7 +156,7 @@ def get_car_num_waiting():
         elif(curCar.getWaitingFor() == 2):
             car_num_waiting_west += 1
         elif(curCar.getWaitingFor() == 3):
-            car_num_waiting_east += 1
+            car_num_waiting_east += 1           
             
     return [car_num_waiting_north, car_num_waiting_south, car_num_waiting_west, car_num_waiting_east]
 
@@ -148,10 +166,37 @@ def get_car_num_waiting():
 def get_car_num_total():
     return len(cars)
 
+# Get the total number of cars on NS & WE directions:
+def get_car_num_NS_WE():
+    NS_num = 0
+    WE_num = 0
+    for car in cars:
+        if (car.heading() % 180 == 90):     # NS
+            NS_num += 1
+        else:
+            WE_num += 1
+            
+    return [NS_num, WE_num]
+
+
 ##### End of APIs for external usage #####
 
 
 # Implementation
+
+def getRandDir0to3():
+    rate = random.uniform(0, 2)     # Generate a float between 0 and 2
+    if(rate > 1):
+        rate -= 1
+        if(rate > rate_of_car_on_NS):
+            return EAST
+        else:
+            return SOUTH
+    else:
+        if(rate > rate_of_car_on_NS):
+            return WEST
+        else:
+            return NORTH
 
 def exec_traffic_direction():
     global traffic_direction_north_south
@@ -237,10 +282,12 @@ def restartCar(car):
 
     global car_start_position_x
     global car_start_position_y
-    
+
+    car.setWaiting(False)   # Waiting for none
     car.hideturtle()       # Hide the image
 
-    _direction = random.randint(0,3)   # Generate random direction
+    #_direction = random.randint(0,3)   # Generate random direction
+    _direction = getRandDir0to3()
     
     # Set the car direction
     if(_direction == SOUTH):    # go south
@@ -250,8 +297,8 @@ def restartCar(car):
     elif(_direction == NORTH):  # go north
         car.setheading(90)
         car.shape("car_toNorth.gif")
-    elif(_direction == 2):  # go east
-        car.setheading(EAST)
+    elif(_direction == EAST):  # go east
+        car.setheading(0)
         car.shape("car_toEast.gif")
     else:                   # go west
         car.setheading(180)
@@ -294,6 +341,36 @@ def willCollide(curCar, nextX, nextY):
     # No Collision
     return False
 
+# Simulate as the real traffic pattern
+# Each traffic switch takes around 55 time_pin
+def realMode():
+    global time_pin
+    global rate_of_car_on_NS
+
+    # Traffic Pattern Control
+    if(time_pin < 300):
+        rate_of_car_on_NS = 0.5
+    elif(time_pin < 600):
+        rate_of_car_on_NS = 0.9
+    elif(time_pin < 900):
+        rate_of_car_on_NS = 0.1
+    else:
+        rate_of_car_on_NS = 0.5
+
+    # Light Time Control
+    # 1/6 chance to update
+    toRandChange = random.randint(0,5)
+    if(toRandChange == 0):
+        if(time_pin < 320):
+            tune_traffic_time_green_red_north_south(0, 0)
+        elif(time_pin < 620):
+            tune_traffic_time_green_red_north_south(1, -1)
+        elif(time_pin < 920):
+            tune_traffic_time_green_red_north_south(-2, 2)
+        else:
+            tune_traffic_time_green_red_north_south(1, -1)
+    
+
 def updateScreen():
     
 
@@ -306,6 +383,9 @@ def updateScreen():
     global state
     global lastAction
     global lightswitch
+    global time_pin
+    global rate_of_car_on_NS
+    global average_congest_rate
     
     #global car_num_waiting_north
     #global car_num_waiting_south
@@ -322,10 +402,7 @@ def updateScreen():
     # OR when North-South is red(to be green), and the traffic time reach red's limit
     if ((traffic_time >= traffic_time_green_update) and not traffic_direction_north_south) or ((traffic_time >= traffic_time_red_update) and traffic_direction_north_south):
         
-            
 
-        
-        
         
         # Control the traffic lights
         if((traffic_time >= traffic_time_green_update) and not traffic_direction_north_south):
@@ -356,7 +433,7 @@ def updateScreen():
             lastAction = tuple(lastAction)
             redLightTune, greenLightTune = lastAction
             tune_traffic_time_green_red_north_south(greenLightTune, redLightTune)
-            print (redLightTune, greenLightTune)
+            #print (redLightTune, greenLightTune)
         
         traffic_time = 0
         exec_traffic_direction()
@@ -365,82 +442,145 @@ def updateScreen():
     # Create random car
     if ((traffic_time % time_to_create_car == 0) and (len(cars) < car_max_num)):
         #print("Create new car!")
-        rand_dir = random.randint(0,3)
-        createCar(rand_dir,30)  # given direction
+        #rand_dir = random.randint(0,3)
+        createCar(getRandDir0to3(),30)  # given direction
 
     # Move the cars
     for i in range(len(cars)):
         curCar = cars[i]
 
         if (curCar.heading() == 270.0):  # Head South
-            if ((curCar.ycor() < 200) and (curCar.ycor() > 100) and (red_lights[0].isvisible())):
+            if ((curCar.ycor() < 200) and (curCar.ycor() > 150) and (red_lights[0].isvisible())):
                 #if(not curCar.getWaiting()):
                     #car_num_waiting_north += 1    # Wait at north
                 # Stop the car
-                curCar.setWaiting(True)
+                #curCar.setWaiting(True)
                 curCar.setWaitingFor(0)
             elif (curCar.ycor() < -350):  # Cancel car when out of sight
                 restartCar(curCar)
             else:
                 if(not willCollide(curCar, curCar.xcor(), curCar.ycor() - CAR_SPEED * collision_factor_for_speed)):
                     curCar.forward(CAR_SPEED)
-                    curCar.setWaiting(False)
+                    #curCar.setWaiting(False)
 
         elif (curCar.heading() == 90.0):  # Head North
-            if ((curCar.ycor() < -100) and (curCar.ycor() > -200) and (red_lights[1].isvisible())):
+            if ((curCar.ycor() < -150) and (curCar.ycor() > -200) and (red_lights[1].isvisible())):
                 #if(not curCar.getWaiting()):
                     #car_num_waiting_south += 1    # Wait at south
                 # Stop the car
-                curCar.setWaiting(True)
+                #curCar.setWaiting(True)
                 curCar.setWaitingFor(1)
             elif (curCar.ycor() > 350):  # Cancel car when out of sight
                 restartCar(curCar)
             else:
                 if(not willCollide(curCar, curCar.xcor(), curCar.ycor() + CAR_SPEED * collision_factor_for_speed)):
                     curCar.forward(CAR_SPEED)
-                    curCar.setWaiting(False)
+                    #curCar.setWaiting(False)
                 
         elif (curCar.heading() == 0.0):  # Head East
-            if ((curCar.xcor() < -100) and (curCar.xcor() > -200) and (red_lights[2].isvisible())):
+            if ((curCar.xcor() < -150) and (curCar.xcor() > -200) and (red_lights[2].isvisible())):
                 #if(not curCar.getWaiting()):
                     #car_num_waiting_west += 1    # Wait at west
                 # Stop the car
-                curCar.setWaiting(True)
+                #curCar.setWaiting(True)
                 curCar.setWaitingFor(2)
             elif (curCar.xcor() > 350):  # Cancel car when out of sight
                 restartCar(curCar)
             else:
                 if(not willCollide(curCar, curCar.xcor() + CAR_SPEED * collision_factor_for_speed, curCar.ycor())):
                     curCar.forward(CAR_SPEED)
-                    curCar.setWaiting(False)
+                    #curCar.setWaiting(False)
                 
         elif (curCar.heading() == 180.0):  # Head West 
-            if ((curCar.xcor() < 200) and (curCar.xcor() > 100) and (red_lights[3].isvisible())):
+            if ((curCar.xcor() < 200) and (curCar.xcor() > 150) and (red_lights[3].isvisible())):
                 #if(not curCar.getWaiting()):
                     #car_num_waiting_east += 1    # Wait at east
                 # Stop the car
-                curCar.setWaiting(True)
+                #curCar.setWaiting(True)
                 curCar.setWaitingFor(3)
             elif (curCar.xcor() < -350):  # Cancel car when out of sight
                 restartCar(curCar)
             else:
                 if(not willCollide(curCar, curCar.xcor() - CAR_SPEED * collision_factor_for_speed, curCar.ycor())):
                     curCar.forward(CAR_SPEED)
-                    curCar.setWaiting(False)
+                    #curCar.setWaiting(False)
                   
-        else:
-            curCar.forward(CAR_SPEED)
+        #else:
+            #curCar.forward(CAR_SPEED)
 
 
     # Update Interface
-    score_text.clear()
-    wait_list = get_car_num_waiting()
-    wait_list_str = str(wait_list[0]) + " " + str(wait_list[1]) + " " + str(wait_list[2]) + " " + str(wait_list[3]) + "\n"
-    score_text.write(wait_list_str, font=("Arial", 20, "bold"), align="center")
-    score_text.write("\nTotal: " + str(get_car_num_total()), font=("Arial", 20, "bold"), align="center")
+    congest_list = get_car_num_waiting()
+    car_num_total = get_car_num_total()
+    car_num_NS_WE = get_car_num_NS_WE()
+    
+    congest_num_total = 0
+    for i in range(len(congest_list)):
+        congest_num_total += congest_list[i]
+    
+    if (car_num_total != 0):
+        congest_rate = congest_num_total / float(car_num_total)
+    else:
+        congest_rate = 0.00
+    # Add to the history (not too frequent)
+    if(time_pin % 10 == 0):
+        if len(congest_rate_array) > 10:
+            congest_rate_array.pop(0)   # avoid exceeding
+        congest_rate_array.append(congest_rate)
+
+    if(interface_cache[0] != car_num_total):
+        interface_cache[0] = car_num_total
+        total_car_num.clear()
+        total_car_num.write("\nTotal Cars: " + str(interface_cache[0]), font=("Arial", 12, "bold"), align="left")
+
+    if(interface_cache[1] != congest_list[0]):
+        interface_cache[1] = congest_list[0]
+        north_congest_num.clear()
+        if(interface_cache[1] != 0):
+            north_congest_num.write(str(congest_list[0]), font=("Arial", 16, "bold"), align="center")
+
+    if(interface_cache[2] != congest_list[1]):
+        interface_cache[2] = congest_list[1]
+        south_congest_num.clear()
+        if(interface_cache[2] != 0):
+            south_congest_num.write(str(congest_list[1]), font=("Arial", 16, "bold"), align="center")
+
+    if(interface_cache[3] != congest_list[2]):
+        interface_cache[3] = congest_list[2]
+        west_congest_num.clear()
+        if(interface_cache[3] != 0):
+            west_congest_num.write(str(congest_list[2]), font=("Arial", 16, "bold"), align="center")
+
+    if(interface_cache[4] != congest_list[3]):
+        interface_cache[4] = congest_list[3]
+        east_congest_num.clear()
+        if(interface_cache[4] != 0):
+            east_congest_num.write(str(congest_list[3]), font=("Arial", 16, "bold"), align="center")
+
+    if(interface_cache[5] != car_num_NS_WE):
+        interface_cache[5] = car_num_NS_WE
+        NS_WE_car_num.clear()
+        NS_WE_car_num.write("North - South Cars: " + str(interface_cache[5][0]) +\
+                            "\nWest - East Cars: " + str(interface_cache[5][1]) +\
+                            "\nCongest Rate: " + "%.1f" % (average_congest_rate * 100) + "%",\
+                            font=("Arial", 12, "bold"), align="left")
+                            # "\nCongest Rate: " + "%.1f" % (congest_rate * 100) + "%" +\
         
 
     # Update the screen for every time interval
+    time_pin += 1
+    if(time_pin % 50 == 0):
+        
+        average_congest_rate = sum(congest_rate_array) / float(len(congest_rate_array))
+        
+        # print "time_pin: " + str(time_pin)
+        # print "Rate of car (NS): " + str(rate_of_car_on_NS)
+        # print "Red Light Time (NS): " + str(traffic_time_red_update)
+        # print "Green Light Time (NS):" + str(traffic_time_green_update)
+        # print "Average Congest Rate:" + "%.1f" % (average_congest_rate * 100) + "%"
+        # print "---------------------------------------------------\n"
+    realMode()
+    
     turtle.update()
     turtle.ontimer(updateScreen, update_interval)
 
@@ -453,8 +593,8 @@ def startSimulation():
     updateScreen()
 
     # Create cars
-    rand_dir = random.randint(0,3)
-    createCar(rand_dir, 30)
+    #rand_dir = random.randint(0,3)
+    createCar(getRandDir0to3(), 30)
 
     
 
@@ -492,11 +632,44 @@ for ind in range(light_pair_number):
 
 
 # Interface
-score_text=turtle.Turtle()
-score_text.up()
-score_text.hideturtle()
-score_text.goto(250, 250)
+total_car_num=turtle.Turtle()
+total_car_num.up()
+total_car_num.hideturtle()
+total_car_num.goto(120, 270)
 
+NS_WE_car_num=turtle.Turtle()
+NS_WE_car_num.up()
+NS_WE_car_num.hideturtle()
+NS_WE_car_num.goto(120, 210)
+
+north_congest_num=turtle.Turtle()
+north_congest_num.up()
+north_congest_num.hideturtle()
+north_congest_num.goto(70, 90)
+#north_congest_num.write("0", font=("Arial", 20, "bold"), align="center")
+
+south_congest_num=turtle.Turtle()
+south_congest_num.up()
+south_congest_num.hideturtle()
+south_congest_num.goto(-70, -110)
+#south_congest_num.write("0", font=("Arial", 20, "bold"), align="center")
+
+west_congest_num=turtle.Turtle()
+west_congest_num.up()
+west_congest_num.hideturtle()
+west_congest_num.goto(-100, 60)
+#west_congest_num.write("0", font=("Arial", 20, "bold"), align="center")
+
+east_congest_num=turtle.Turtle()
+east_congest_num.up()
+east_congest_num.hideturtle()
+east_congest_num.goto(100, -80)
+#east_congest_num.write("0", font=("Arial", 20, "bold"), align="center")
+
+slider_bar=turtle.Turtle()
+slider_bar.up()
+slider_bar.hideturtle()
+slider_bar.goto(-120, 270)
 
 # Start!!!
 startSimulation()
