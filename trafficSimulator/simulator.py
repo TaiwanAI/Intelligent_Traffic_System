@@ -8,7 +8,8 @@ import time
 import pygame
 import math
 from qlearningAgents import QLearningAgent
-
+import requests
+import json
 
 # Initialization
 SOUTH = 0
@@ -68,6 +69,9 @@ time_to_create_car = 20
 #car_num_waiting_south = 0
 #car_num_waiting_west = 0
 #car_num_waiting_east = 0
+
+#acessing reinforecment learning azure server
+url = 'http://localhost:8080'
 
 # Car Class
 class Car(turtle.Turtle):
@@ -331,9 +335,25 @@ def updateScreen():
             else:
                 oldStateSum = sum(oldState[:4])
                 currentStateSum = sum(currentState[:4])
-                reward = (oldStateSum - currentStateSum)
-                learner.observeTransition(oldState, lastAction, currentState, reward)
-            lastAction = learner.getAction(currentState)
+                reward = (oldStateSum - currentStateSum) #reward haven't finished 
+                print("----------------")
+                print(oldState)
+                print(lastAction)
+                print(currentState)
+                print(reward)
+                print("----------------")
+                params = dict(oldState=oldState,
+                	lastAction=lastAction,
+                	currentState=currentState,
+                	reward=reward)
+               	resp = requests.post(url=url+'/observeTransition' , json = params)
+               	# learner.observeTransition(oldState, lastAction, currentState, reward)
+            params = dict(currentState=currentState)
+            resp = requests.post(url=url+'/getAction' , json = params)
+            # lastAction = learner.getAction(currentState)
+            print(lastAction)
+            lastAction = resp.json()['lastAction']
+            lastAction = tuple(lastAction)
             redLightTune, greenLightTune = lastAction
             tune_traffic_time_green_red_north_south(greenLightTune, redLightTune)
             print (redLightTune, greenLightTune)
